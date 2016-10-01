@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 import os
 import time
@@ -11,53 +12,71 @@ import config
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
+filename='posts.txt'
+
+def get_posts_read():
+    posts = []
+    f = open(filename)
+    for line in f:
+        posts.append(line.replace('\n',''))
+    return posts
+
+def write_to_file(id):
+    f = open(filename, 'a')
+    f.write(id + '\n')
+    f.close()
+
+
 def main():
     reddit_conn = utils.reddit_login()
     imgur_conn = utils.imgur_login()
-    posts = []
+    posts = get_posts_read()
     while True:
         try:
             for post in utils.subreddits_posts(reddit_conn):
-                if post.id not in posts:
-                    logging.info('new post: {}'.format(post.id))
-                    url = utils.parse_url(post.url)
-                    logging.info("parsed url: {}, post: {}".format(url, post))
-                    if not url:
-                        # tools.folha url or blogs post in case of oglobo. do not post. however, put it in post list so it doesn't keep getting processed
+                try:
+                    if post.id not in posts:
+                        logging.info('new post: {}'.format(post.id))
+                        url = utils.parse_url(post.url)
+                        #logging.info("parsed url: {}, post: {}".format(url, post))
+                        if not url:
+                            # tools.folha url or blogs post in case of oglobo. do not post. however, put it in post list so it doesn't keep getting processed
+                            posts.append(post.id)
+                            continue
+
+                        response = utils.readability_response(url)
+                        if not response:
+                            # do not retry it. if readability failed to parse, there is nothing we can do
+                            posts.append(post.id)
+                            logging.warning('something went wrong with readability {}'.format(response))
+                            continue
+
+                        title, body, domain = response['title'], response['content'], response['domain']
+
+                        snippet = utils.parse_snippet(domain, body)
+                        if not snippet:
+                            posts.append(post.id)
+                            logging.warning('something went wrong parsing {}'.format(response))
+                            continue
+
+                        formatted_html = utils.html_beautify(title, body)
+                        utils.save_as_image(
+                            html=formatted_html,
+                            filename=config.DOWNLOAD_FILENAME
+                        )
+                        img_link = utils.upload_image(imgur_conn, config.DOWNLOAD_FILENAME).replace("http://", "https://")
+                        logging.info("img link generated: {}".format(img_link))
+                        post.add_comment(
+                                '''Segue a imagem [link]({}), e você pode acessar o 
+                                link para ler por [aqui]({}). Segue algumas
+                                linhas do negócio: {} {}'''.format(img_link, url, *snippet)
+                        )
+                        os.remove(config.DOWNLOAD_FILENAME)
                         posts.append(post.id)
-                        continue
-
-                    response = utils.readability_response(url)
-                    if not response:
-                        # do not retry it. if readability failed to parse, there is nothing we can do
-                        posts.append(post.id)
-                        logging.warning('something went wrong with readability {}'.format(response))
-                        continue
-
-                    title, body, domain = response['title'], response['content'], response['domain']
-
-                    snippet = utils.parse_snippet(domain, body)
-                    if not snippet:
-                        posts.append(post.id)
-                        logging.warning('something went wrong parsing {}'.format(response))
-                        continue
-
-                    formatted_html = utils.html_beautify(title, body)
-                    utils.save_as_image(
-                        html=formatted_html,
-                        filename=config.DOWNLOAD_FILENAME
-                    )
-                    img_link = utils.upload_image(imgur_conn, config.DOWNLOAD_FILENAME).replace("http://", "https://")
-                    logging.info("img link generated: {}".format(img_link))
-                    post.add_comment(
-                        '''Eu sou um bot e fiz o upload desta página como imagem para vocês!
-                        A imagem pode ser acessada por este [link]({}).
-                        Você pode acessar o link para ler por [este]({}).
-                        Você pode ler um pouco da matéria abaixo: {} {}
-                        '''.format(img_link, url, *snippet)
-                    )
-                    os.remove(config.DOWNLOAD_FILENAME)
-                    posts.append(post.id)
+                        write_to_file(post.id)
+                except Exception as e:
+                    logging.warning("error occurred {}".format(e))
+                    pass
 
             logging.info("waiting...")
             time.sleep(config.SLEEP_TIME)

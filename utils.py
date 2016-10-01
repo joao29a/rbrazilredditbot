@@ -14,7 +14,7 @@ import config
 
 def save_as_image(html, filename):
     '''Uses Weasyprint to convert HTML to a PNG.'''
-    logging.info("reading html file... {}".format(html))
+    #logging.info("reading html file... {}".format(html))
     wp = weasyprint.HTML(string=html)
 
     logging.info("generating png...")
@@ -36,8 +36,8 @@ def parse_snippet(domain, body):
     soup = BeautifulSoup(body, 'html.parser')
 
 
-    def search_for_text(class_name):
-        content = soup.find('div', {'class': class_name})
+    def search_for_text(class_name, tag='div', element='class'):
+        content = soup.find(tag, {element: class_name})
         logging.info("got content {}".format(content))
         if content:
             return ['\n\n*' + snippet.text.replace('\n', '').strip() + '*\n'
@@ -48,6 +48,13 @@ def parse_snippet(domain, body):
         return search_for_text('content')
     elif 'oglobo' in domain:
         return search_for_text('corpo')
+    elif 'g1.globo' in domain:
+        content = search_for_text('materia-conteudo')
+        if not content:
+            content = search_for_text('post-content', 'section')
+        return content
+    elif 'noticias.uol' in domain:
+        return search_for_text('texto', element='id')
 
 
 def upload_image(imgur, filename):
@@ -55,7 +62,7 @@ def upload_image(imgur, filename):
 
 
 def reddit_login():
-    reddit = praw.Reddit(user_agent="u-folha-de-sp-by-u-epseh")
+    reddit = praw.Reddit(user_agent="the devil")
     reddit.login(
         config.REDDIT_USERNAME, config.REDDIT_PASSWORD, disable_warning=True
     )
@@ -73,7 +80,7 @@ def parse_url(news_url):
     url = None
     if 'folha' in news_url:
         if 'tools' in news_url:
-            return url
+            return news_url
         elif '?mobile' in news_url:
             url = news_url.replace('?mobile', '')
             url = url.replace('/m.folha', '/www1.folha')
@@ -92,6 +99,10 @@ def parse_url(news_url):
         if not 'blogs' in news_url:
             url = urlparse(news_url)
             url = url.scheme + '://' + url.netloc + url.path
+    elif 'g1.globo' in news_url:
+        return news_url
+    elif 'noticias.uol' in news_url:
+        return news_url
     return url
 
 
@@ -108,10 +119,15 @@ def subreddits_posts(conn):
                 submissions.append(submission)
             for submission in conn.get_subreddit(sub).get_new():
                 submissions.append(submission)
+            for submission in conn.get_subreddit(sub).get_controversial_from_day():
+                submissions.append(submission)
+
 
     get_submissions_from_subreddits(config.SUBREDDITS)
     for submission in submissions:
-        if 'folha.uol' in submission.url or 'oglobo' in submission.url:
+        if 'folha.uol' in submission.url or 'oglobo' in submission.url\
+                or 'g1.globo' in submission.url\
+                or 'noticias.uol' in submission.url:
             yield submission
 
 
