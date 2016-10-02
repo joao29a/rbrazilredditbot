@@ -74,8 +74,8 @@ def get_comments(domain, url):
 
 
             response = urlrequest.urlopen(path)
-            response = response.read().decode('utf8').replace('__callback_listacomentarios(','')\
-                    .replace(')', '')
+            response = response.read().decode('utf8').replace('__callback_listacomentarios(','')
+            response = ''.join(response.rsplit(')', 1))
 
             return json.loads(response)
     except Exception as e:
