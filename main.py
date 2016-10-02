@@ -59,6 +59,14 @@ def main():
                             logging.warning('something went wrong parsing {}'.format(response))
                             continue
 
+                        comments = utils.get_comments(domain, post.url)
+                        top_comment = None
+                        if comments:
+                            try:
+                                top_comment = comments['itens'][0]
+                            except Exception as e:
+                                logging.warning('error occurred {}'.format(e))
+
                         formatted_html = utils.html_beautify(title, body)
                         utils.save_as_image(
                             html=formatted_html,
@@ -66,11 +74,26 @@ def main():
                         )
                         img_link = utils.upload_image(imgur_conn, config.DOWNLOAD_FILENAME).replace("http://", "https://")
                         logging.info("img link generated: {}".format(img_link))
-                        post.add_comment(
-                                '''Segue a imagem [link]({}), e você pode acessar o 
-                                link para ler por [aqui]({}). Segue algumas
-                                linhas do negócio: {} {}'''.format(img_link, url, *snippet)
-                        )
+ 
+                        mensagem = '''Segue a imagem [link]({}), e você pode acessar o 
+                            link para ler por [aqui]({}). Segue algumas
+                            linhas do negócio: {} {}'''.format(img_link, 
+                                url, *snippet)
+
+                        if top_comment:
+                            try:
+                                post.add_comment(
+                                        '''Segue a imagem [link]({}), e você pode acessar o 
+                                        link para ler por [aqui]({}). Segue algumas
+                                        linhas do negócio: {} {} \n\n**Top
+                                        comentário G1:** {}'''.format(img_link,
+                                            url, snippet[0], snippet[1], 
+                                            utils.parse_top_comment(top_comment)))
+                            except Exception as e:
+                                post.add_comment(mensagem)
+                        else:
+                            post.add_comment(mensagem)
+
                         os.remove(config.DOWNLOAD_FILENAME)
                         posts.append(post.id)
                         write_to_file(post.id)

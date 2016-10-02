@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import print_function
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
+import subprocess
+
 import logging
 
 import praw
@@ -10,6 +12,11 @@ from bs4 import BeautifulSoup
 from imgurpython import ImgurClient
 
 import config
+
+import urllib.request as urlrequest
+import json
+
+
 
 
 def save_as_image(html, filename):
@@ -31,6 +38,54 @@ def readability_response(url):
         return None
     return response
 
+
+def get_comments(domain, url):
+    try:
+        if 'g1.globo' in domain:
+            api_url = 'http://comentarios.globo.com/comentarios/%s/%s/%s/%s/%s/populares/%s.json'
+
+            command = 'curl -s %s | grep -e "idExterno" -e "shortUrl" -e "uri:"\
+                    -e "titulo:"' % url
+            p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+            
+            out, err = p.communicate()
+
+            def get_value(line):
+                return quote(line.replace('"', "'")
+                        .split("'")[2].replace('/', '@@'))
+
+            values = {}
+            for line in out.splitlines():
+                line = str(line)
+                if 'uri' in line:
+                    values['uri'] = get_value(line)
+                elif 'idExterno' in line:
+                    values['idExterno'] = get_value(line)
+                elif 'shortUrl' in line:
+                    values['shortUrl'] = get_value(line)
+                elif 'titulo' in line:
+                    values['titulo'] = get_value(line)
+
+            values['url'] = quote(url.replace('/', '@@'))
+
+            path = api_url % (values['uri'], values['idExterno'], values['url'],
+                    values['shortUrl'], values['titulo'], 1)
+
+
+            response = urlrequest.urlopen(path)
+            response = response.read().decode('utf8').replace('__callback_listacomentarios(','')\
+                    .replace(')', '')
+
+            return json.loads(response)
+    except Exception as e:
+        logging.info('error: {}'.format(e))
+    return None
+
+
+def parse_top_comment(top_comment):
+    return '\n\n*"' + top_comment['texto'] + '"* - ' +\
+        top_comment['Usuario']['nomeFormatado']
 
 def parse_snippet(domain, body):
     soup = BeautifulSoup(body, 'html.parser')
