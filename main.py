@@ -54,10 +54,6 @@ def main():
                         title, body, domain = response['title'], response['content'], response['domain']
 
                         snippet = utils.parse_snippet(domain, body)
-                        if not snippet:
-                            posts.append(post.id)
-                            logging.warning('something went wrong parsing {}'.format(response))
-                            continue
 
                         comments = utils.get_comments(domain, post.url)
                         top_comment = None
@@ -76,19 +72,21 @@ def main():
                         logging.info("img link generated: {}".format(img_link))
  
                         mensagem = '''Segue a imagem [link]({}), e você pode acessar o 
-                            link para ler por [aqui]({}). Segue algumas
-                            linhas do negócio: {} {}'''.format(img_link, 
-                                url, *snippet)
+                            link para ler por [aqui]({}).'''.format(img_link, url)
+
+                        if not snippet:
+                            mensagem = mensagem + ''' Me desculpe,
+                                não consegui buscar um resuminho.'''
+                        else:
+                            mensagem = mensagem + ''' Segue algumas
+                            linhas do negócio: {} {}'''.format(*snippet) 
 
                         if top_comment:
                             try:
                                 post.add_comment(
-                                        '''Segue a imagem [link]({}), e você pode acessar o 
-                                        link para ler por [aqui]({}). Segue algumas
-                                        linhas do negócio: {} {} \n\n**Top
-                                        comentário G1:** {}'''.format(img_link,
-                                            url, snippet[0], snippet[1], 
-                                            utils.parse_top_comment(top_comment)))
+                                        mensagem + '''\n\n**Top
+                                        comentário G1:**
+                                        {}'''.format(utils.parse_top_comment(top_comment)))
                             except Exception as e:
                                 post.add_comment(mensagem)
                         else:
