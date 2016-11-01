@@ -54,6 +54,10 @@ def main():
                         title, body, domain = response['title'], response['content'], response['domain']
 
                         snippet = utils.parse_snippet(domain, body)
+                        
+                        if not snippet:
+                            posts.append(post.id)
+                            continue
 
                         comments = utils.get_comments(domain, post.url)
                         top_comment = None
@@ -74,11 +78,7 @@ def main():
                         mensagem = '''Segue a imagem [link]({}), e você pode acessar o 
                             link para ler por [aqui]({}).'''.format(img_link, url)
 
-                        if not snippet:
-                            mensagem = mensagem + ''' Me desculpe,
-                                não consegui buscar um resuminho.'''
-                        else:
-                            mensagem = mensagem + ''' Segue algumas
+                        mensagem = mensagem + ''' Segue algumas
                             linhas do negócio: {} {}'''.format(*snippet) 
 
                         if top_comment:
